@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PyChess v0.0.1a01 - Desktop Chess Client for Linux/Windows"""
+"""PyChess v0.0.1a - Desktop Chess Client for Linux/Windows"""
 
 import sys
 import os
@@ -11,7 +11,7 @@ import tkinter as tk
 from game.board import Board
 from ui.chess_gui import ChessGUI
 
-VERSION = "0.0.1a01"
+VERSION = "0.0.1a"
 
 def main():
     print(f"PyChess {VERSION} starting...")

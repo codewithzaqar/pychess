@@ -1,4 +1,4 @@
-"""Tkinter-based chess GUI."""
+"""Tkinter-based chess GUI with check indication."""
 
 import tkinter as tk
 from typing import Optional, Tuple
@@ -9,6 +9,7 @@ SQUARE_SIZE = 70
 LIGHT_COLOR = "#EEEBD0"
 DARK_COLOR = "#B58863"
 HIGHLIGHT_COLOR = "#BBC94C"
+CHECK_COLOR = "#FF6B6B"  # Red highlight for king in check
 
 class ChessGUI:
     def __init__(self, root: tk.Tk, board: Board):
@@ -16,7 +17,7 @@ class ChessGUI:
         self.board = board
         self.selected: Optional[Position] = None
 
-        self.root.title("PyChess v0.0.1a01")
+        self.root.title("PyChess v0.0.1a")
         self.root.resizable(False, False)
 
         self.canvas = tk.Canvas(root, width=SQUARE_SIZE * 8, height=SQUARE_SIZE * 8)
@@ -30,13 +31,22 @@ class ChessGUI:
 
     def draw_board(self):
         self.canvas.delete("all")
+        in_check = self.board.is_in_check(self.board.turn)
+        king_pos = self.board._find_king(self.board.turn) if in_check else None
+
         for row in range(8):
             for col in range(8):
                 x1, y1 = col * SQUARE_SIZE, row * SQUARE_SIZE
                 x2, y2 = x1 + SQUARE_SIZE, y1 + SQUARE_SIZE
-                color = LIGHT_COLOR if (row + col) % 2 == 0 else DARK_COLOR
-                if self.selected == (row, col):
+                
+                # Determine square color
+                if (row, col) == king_pos and in_check:
+                    color = CHECK_COLOR
+                elif self.selected == (row, col):
                     color = HIGHLIGHT_COLOR
+                else:
+                    color = LIGHT_COLOR if (row + col) % 2 == 0 else DARK_COLOR
+                    
                 self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="")
 
                 piece = self.board.get_piece((row, col))
@@ -49,8 +59,12 @@ class ChessGUI:
                         fill="black" if piece.color == Color.BLACK else "white"
                     )
 
+        # Update status bar
         turn_name = "White" if self.board.turn == Color.WHITE else "Black"
-        self.status_var.set(f"{turn_name} to move")
+        status = f"{turn_name} to move"
+        if in_check:
+            status += " | CHECK!"
+        self.status_var.set(status)
 
     def _on_click(self, event: tk.Event):
         col = event.x // SQUARE_SIZE
@@ -65,7 +79,6 @@ class ChessGUI:
             if self.board.make_move(self.selected, pos):
                 self.selected = None
             else:
-                # If clicking own piece, reselect; otherwise deselect
                 piece = self.board.get_piece(pos)
                 self.selected = pos if (piece and piece.color == self.board.turn) else None
 
