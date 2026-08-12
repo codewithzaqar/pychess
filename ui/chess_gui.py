@@ -1,21 +1,25 @@
-"""Tkinter-based chess GUI with check indication."""
+"""Tkinter GUI with promotion dialog and game-over handling."""
 
 import tkinter as tk
+from tkinter import messagebox
 from typing import Optional, Tuple
 from game.board import Board, Position
-from game.pieces import Color, get_piece_symbol
+from game.pieces import Color, PieceType, get_piece_symbol
 
 SQUARE_SIZE = 70
 LIGHT_COLOR = "#EEEBD0"
 DARK_COLOR = "#B58863"
 HIGHLIGHT_COLOR = "#BBC94C"
-CHECK_COLOR = "#FF6B6B"  # Red highlight for king in check
+CHECK_COLOR = "#FF6B6B"
+
+PROMOTION_PIECES = [PieceType.QUEEN, PieceType.ROOK, PieceType.BISHOP, PieceType.KNIGHT]
 
 class ChessGUI:
     def __init__(self, root: tk.Tk, board: Board):
         self.root = root
         self.board = board
         self.selected: Optional[Position] = None
+        self.game_over = False
 
         self.root.title("PyChess v0.0.1a")
         self.root.resizable(False, False)
@@ -39,7 +43,6 @@ class ChessGUI:
                 x1, y1 = col * SQUARE_SIZE, row * SQUARE_SIZE
                 x2, y2 = x1 + SQUARE_SIZE, y1 + SQUARE_SIZE
                 
-                # Determine square color
                 if (row, col) == king_pos and in_check:
                     color = CHECK_COLOR
                 elif self.selected == (row, col):
@@ -58,15 +61,54 @@ class ChessGUI:
                         text=symbol, font=("Segoe UI Symbol", font_size),
                         fill="black" if piece.color == Color.BLACK else "white"
                     )
+        self._update_status()
 
-        # Update status bar
+    def _update_status(self):
         turn_name = "White" if self.board.turn == Color.WHITE else "Black"
+        if self.game_over:
+            return  # Status already set by game-over handler
         status = f"{turn_name} to move"
-        if in_check:
+        if self.board.is_in_check(self.board.turn):
             status += " | CHECK!"
         self.status_var.set(status)
 
+    def _check_game_over(self):
+        if not self.board.has_legal_moves(self.board.turn):
+            self.game_over = True
+            if self.board.is_in_check(self.board.turn):
+                winner = "Black" if self.board.turn == Color.WHITE else "White"
+                msg = f"Checkmate! {winner} wins!"
+            else:
+                msg = "Stalemate! Draw."
+            self.status_var.set(msg)
+            messagebox.showinfo("Game Over", msg)
+
+    def _show_promotion_dialog(self) -> PieceType:
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Promote Pawn")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        result = {"choice": PieceType.QUEEN}
+        color = self.board.turn
+
+        for i, ptype in enumerate(PROMOTION_PIECES):
+            symbol = get_piece_symbol(color, ptype)
+            btn = tk.Button(
+                dialog, text=symbol, font=("Segoe UI Symbol", 36),
+                width=3, height=1,
+                command=lambda pt=ptype: (result.update({"choice": pt}), dialog.destroy())
+            )
+            btn.grid(row=0, column=i, padx=5, pady=10)
+
+        dialog.wait_window()
+        return result["choice"]
+
     def _on_click(self, event: tk.Event):
+        if self.game_over:
+            return
+            
         col = event.x // SQUARE_SIZE
         row = event.y // SQUARE_SIZE
         pos: Position = (row, col)
@@ -76,10 +118,16 @@ class ChessGUI:
             if piece and piece.color == self.board.turn:
                 self.selected = pos
         else:
-            if self.board.make_move(self.selected, pos):
+            if self.board.is_valid_move(self.selected, pos):
+                promotion = PieceType.QUEEN
+                if self.board.is_promotion(self.selected, pos):
+                    promotion = self._show_promotion_dialog()
+                
+                self.board.make_move(self.selected, pos, promotion)
                 self.selected = None
+                self.draw_board()
+                self._check_game_over()
             else:
                 piece = self.board.get_piece(pos)
                 self.selected = pos if (piece and piece.color == self.board.turn) else None
-
-        self.draw_board()
+                self.draw_board()
